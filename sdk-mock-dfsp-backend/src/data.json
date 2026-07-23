@@ -1,0 +1,55 @@
+{
+    "participants": {
+        "mojaloop-sdk": "http://1.2.3.4:3000"
+    },
+    "parties": {
+        "MSISDN": {
+            "123456789": {
+                "idType": "MSISDN",
+                "idValue": "123456789",
+                "type": "CONSUMER",
+                "displayName": "John Doe",
+                "firstName": "John",
+                "middleName": "Someone",
+                "lastName": "Doe",
+                "dateOfBirth": "1980-01-01",
+                "merchantClassificationCode": "1234"
+            },
+            "987654321": {
+                "idType": "MSISDN",
+                "idValue": "987654321",
+                "type": "CONSUMER",
+                "displayName": "Jane Doe",
+                "firstName": "Jane",
+                "middleName": "Someone",
+                "lastName": "Doe",
+                "dateOfBirth": "1982-02-02",
+                "merchantClassificationCode": "4321"
+            }
+        },
+        "ACCOUNT_ID": {
+            "876543219": {
+                "idType": "ACCOUNT_ID",
+                "idValue": "876543219",
+                "type": "CONSUMER",
+                "displayName": "John Doe",
+                "firstName": "John",
+                "middleName": "Someone",
+                "lastName": "Doe",
+                "dateOfBirth": "1980-01-01",
+                "merchantClassificationCode": "1234"
+            },
+            "765432198": {
+                "idType": "ACCOUNT_ID",
+                "idValue": "765432198",
+                "type": "CONSUMER",
+                "displayName": "Jane Doe",
+                "firstName": "Jane",
+                "middleName": "Someone",
+                "lastName": "Doe",
+                "dateOfBirth": "1982-02-02",
+                "merchantClassificationCode": "4321"
+            }
+        }
+    }
+}

@@ -1,0 +1,22 @@
+{
+  "from": {
+    "displayName": "Murthy Kakarlamudi",
+    "idType": "MSISDN",
+    "idValue": "17855501914",
+    "extensionList": [
+      {"key": "accountType",
+        "value": "Wallet"}
+    ]
+  },
+  "to": {
+    "idType": "MSISDN",
+    "idValue": "1234567890"
+  },
+  "amountType": "SEND",
+  "currency": "USD",
+  "amount": "100",
+  "transactionType": "TRANSFER",
+  "subScenario": "SUBSCENARIO",
+  "note": "test payment",
+  "homeTransactionId": "123ABC"
+}

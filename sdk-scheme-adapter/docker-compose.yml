@@ -1,0 +1,168 @@
+networks:
+  mojaloop-net:
+    name: mojaloop-net
+
+services:
+
+  sdk-scheme-adapter-api-svc:
+    networks:
+        - mojaloop-net
+    image: mojaloop/sdk-scheme-adapter:local
+    container_name: sdk-scheme-adapter-api-svc
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    env_file: ./deploy/.env
+    ports:
+      - "4200:4200" # Inbound 
+      - "4201:4201" # Outbound
+      - "4202:4202" # Test API
+      - "4205:4205" # Management API (PM4ML)
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      ml-testing-toolkit:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    command: yarn nx run modules-api-svc:start
+    volumes:
+      - ./docker/wait4:/tmp/wait4
+      - ./secrets:/opt/app/secrets
+    user: root # Set Root so we can install Curl for Healthchecks
+    healthcheck:
+      test: ["CMD-SHELL", "apk add --no-cache curl > /dev/null 2>&1; curl -f http://localhost:4001"]
+      timeout: 20s
+      retries: 10
+      start_period: 40s
+      interval: 30s
+
+  redis:
+    networks:
+      - mojaloop-net
+    image: "redis:6.2.4-alpine"
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD" ,"sh", "-c", "redis-cli","ping"]
+      timeout: 20s
+      retries: 10
+      start_period: 40s
+      interval: 30s
+
+  ml-testing-toolkit:
+    networks:
+      mojaloop-net:
+        aliases:
+          - ttkbackendsim
+          - ttkhubsim
+    image: mojaloop/ml-testing-toolkit:v17.2.2
+    volumes:
+      - "./docker/ml-testing-toolkit/spec_files:/opt/app/spec_files"
+      - "./docker/ml-testing-toolkit/secrets:/opt/app/secrets"
+
+    ports:
+      - "4040:4040"
+      - "5050:5050"
+    environment:
+      - AUTH_ENABLED=FALSE
+    command: npm start
+    user: root
+
+  # For local development we want to have ttk-ui
+  #
+  mojaloop-testing-toolkit-ui:
+    image: mojaloop/ml-testing-toolkit-ui:v15.5.0
+    ports:
+      - "6060:6060"
+    networks:
+      - mojaloop-net
+    environment:
+      - API_BASE_URL=http://localhost:5050
+      - AUTH_ENABLED=FALSE
+    command:
+      - sh
+      - /usr/share/nginx/start.sh
+    user: root
+
+  kafka:
+    networks:
+      - mojaloop-net
+    image: docker.io/bitnamilegacy/kafka:3.4.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # BITNAMI_DEBUG: "yes"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_CFG_LISTENERS: CONTROLLER://:9093,LISTENER_DOCKER://:29092,LISTENER_EXTERN://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: LISTENER_DOCKER://kafka:29092,LISTENER_EXTERN://localhost:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,LISTENER_DOCKER:PLAINTEXT,LISTENER_EXTERN:PLAINTEXT
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_MESSAGE_MAX_BYTES: 200000000
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
+      KAFKA_ENABLE_KRAFT: "true"
+    healthcheck:
+      test: ["CMD" ,"/opt/bitnami/kafka/bin/kafka-broker-api-versions.sh","--bootstrap-server","kafka:9092"]
+      timeout: 20s
+      retries: 10
+      start_period: 40s
+      interval: 30s
+
+  # For local development we want to have a redis-ui
+  #
+  redisinsight:
+    networks:
+      - mojaloop-net
+    image: redislabs/redisinsight
+    ports:
+      - "9001:8001"
+    volumes: []
+    restart: on-failure
+    profiles:
+      - debug
+
+  # For local development we want to have a kafka-ui
+  #
+  kafka-debug-ui:
+    networks:
+      - mojaloop-net
+    image: docker.redpanda.com/redpandadata/console:v23.2.17
+    deploy:
+      replicas: 1
+    restart: on-failure
+    ports:
+    - "9080:8080"
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    profiles:
+      - debug
+
+  init-kafka:
+    networks:
+      - mojaloop-net
+    image: docker.io/bitnamilegacy/kafka:3.4.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics.sh --bootstrap-server kafka:29092 --list
+      echo -e 'Creating kafka topics'
+      kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic topic-sdk-outbound-command-events --replication-factor 1 --partitions 1
+      kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic topic-sdk-outbound-domain-events --replication-factor 1 --partitions 1
+      echo -e 'Successfully created the following topics:'
+      kafka-topics.sh --bootstrap-server kafka:29092 --list
+      "

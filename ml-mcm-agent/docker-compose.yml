@@ -1,0 +1,174 @@
+services:
+  mcm-agent:
+    build: .
+    container_name: mcm-agent
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - LOG_LEVEL=debug
+      - VAULT_ENDPOINT=http://vault:8200
+      - VAULT_AUTH_ROLE_ID_PATH=/vault/role-id
+      - VAULT_AUTH_SECRET_ID_PATH=/vault/secret-id
+    volumes:
+      - vault-creds:/vault:ro
+    networks:
+      - mojaloop
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: wget --quiet --tries=1 --spider http://127.0.0.1:3000/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - production
+
+  vault:
+    image: hashicorp/vault:1.20
+    container_name: vault
+    command: server
+    ports:
+      - "8200:8200"
+    restart: always
+    tty: true
+    stdin_open: true
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_API_ADDR: http://0.0.0.0:8200
+      VAULT_LOCAL_CONFIG: '{"listener": [{"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}}], "storage": {"file": {"path": "/vault/data"}}, "default_lease_ttl": "8760h", "max_lease_ttl": "87600h", "ui": true}'
+    volumes:
+      - vault-data:/vault/data
+      - vault-creds:/vault/creds
+      - ./docker/vault/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - mojaloop
+    healthcheck:
+      test: wget --quiet --spider http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  vault-init:
+    build:
+      context: ./docker/vault
+      dockerfile_inline: |
+        FROM alpine:latest
+        RUN apk add --no-cache curl jq
+    container_name: vault-init
+    environment:
+      VAULT_ADDR: http://vault:8200
+    volumes:
+      - vault-data:/vault/data
+      - vault-creds:/vault/creds
+      - ./docker/vault/vault-init.sh:/vault-init.sh
+    depends_on:
+      vault:
+        condition: service_healthy
+    entrypoint: /vault-init.sh
+    restart: "no"
+    networks:
+      - mojaloop
+
+  volume-explorer:
+    image: alpine
+    container_name: volume-explorer
+    command: cp -r /vault/creds/. /creds/
+    volumes:
+      - vault-creds:/vault/creds:ro
+      - ./docker/vault/tmp:/creds:rw
+    networks:
+      - mojaloop
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles:
+      - dev
+
+  redis:
+    image: bitnami/redis
+    container_name: redis
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_PORT=6379
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_TLS_ENABLED=no
+    ports:
+      - "6379:6379"
+    networks:
+      - mojaloop
+    restart: unless-stopped
+
+  sdk-scheme-adapter:
+    image: mojaloop/sdk-scheme-adapter:v24.9.0
+    container_name: sdk-scheme-adapter
+    command:
+      - sh
+      - -c
+      - "yarn start:api-svc"
+    environment:
+      - API_TYPE=iso20022
+      - ILP_VERSION=4
+      - CACHE_URL=redis://redis:6379
+      - ENABLE_OAUTH_TOKEN_ENDPOINT=false
+      - ENABLE_BACKEND_EVENT_HANDLER=false
+      - ENABLE_FSPIOP_EVENT_HANDLER=false
+      - ENABLE_TEST_FEATURES=true
+      - INBOUND_LISTEN_PORT=4000
+      - IN_CA_CERT_PATH=/secrets/inbound-cacert.pem
+      - IN_SERVER_CERT_PATH=/secrets/inbound-cert.pem
+      - IN_SERVER_KEY_PATH=/secrets/inbound-key.pem
+      - JWS_SIGNING_KEY_PATH=/jwsSigningKey.key
+      - JWS_VERIFICATION_KEYS_DIRECTORY=/jwsVerificationKeys
+      - METRICS_SERVER_LISTEN_PORT=4004
+      - MULTIPLE_PARTIES_RESPONSE=false
+      - MGMT_API_WS_URL=mcm-agent
+      - MGMT_API_WS_PORT=4005
+      - OUTBOUND_LISTEN_PORT=4001
+      - TEST_LISTEN_PORT=4002
+      - RESOURCE_VERSIONS=transfers=2.0,quotes=2.0,participants=2.0,parties=2.0,transactionRequests=1.1
+      - FSPIOP_API_SERVER_MAX_REQUEST_BYTES=209715200
+      - BACKEND_API_SERVER_MAX_REQUEST_BYTES=209715200
+      - BACKEND_ENDPOINT=http://sim-backend:5051
+      - WSO2_BEARER_TOKEN=7718fa9b-be13-3fe7-87f0-a12cf1628168
+      - PEER_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - ALS_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - QUOTES_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - TRANSFERS_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - TRANSACTION_REQUESTS_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - BULK_QUOTES_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - BULK_TRANSFERS_ENDPOINT=http://mojaloop-testing-toolkit:4040
+      - AUTO_ACCEPT_QUOTES=false
+      - AUTO_ACCEPT_PARTY=true
+      - USE_QUOTE_SOURCE_FSP_AS_TRANSFER_PAYEE_FSP=false
+      - VALIDATE_INBOUND_JWS=false
+      - VALIDATE_INBOUND_PUT_PARTIES_JWS=false
+      - JWS_SIGN=false
+      - JWS_SIGN_PUT_PARTIES=false
+    volumes:
+      - ./docker/sdk-scheme-adapter/secrets/inbound-cacert.pem:/secrets/inbound-cacert.pem
+      - ./docker/sdk-scheme-adapter/secrets/inbound-cert.pem:/secrets/inbound-cert.pem
+      - ./docker/sdk-scheme-adapter/secrets/inbound-key.pem:/secrets/inbound-key.pem
+      - ./docker/sdk-scheme-adapter/secrets/jwsSigningKey.key:/jwsSigningKey.key
+      - ./docker/sdk-scheme-adapter/secrets/jwsVerificationKeys:/jwsVerificationKeys
+    networks:
+      - mojaloop
+    depends_on:
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  vault-data:
+  vault-creds:
+
+networks:
+  mojaloop:
+    driver: bridge

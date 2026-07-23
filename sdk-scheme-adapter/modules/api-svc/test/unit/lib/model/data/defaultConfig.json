@@ -1,0 +1,62 @@
+{
+  "inbound": {
+      "port": 4000,
+      "tls": {
+          "mutualTLS": { "enabled": false },
+          "creds": {
+              "ca": null,
+              "cert": null,
+              "key": null
+          }
+      }
+  },
+  "outbound": {
+      "port": 4001,
+      "tls": {
+          "mutualTLS": { "enabled": false },
+          "creds": {
+              "ca": null,
+              "cert": null,
+              "key": null
+          }
+      }
+  },
+  "peerEndpoint": "172.17.0.2:3001",
+  "backendEndpoint": "172.17.0.2:3001",
+  "alsEndpoint": "127.0.0.1:6500",
+  "dfspId": "mojaloop-sdk",
+  "ilpSecret": "mojaloop-sdk",
+  "checkIlp": true,
+  "expirySeconds": 60,
+  "requestProcessingTimeoutSeconds": 3,
+  "autoAcceptQuotes": true,
+  "autoAcceptParty": true,
+  "useQuoteSourceFSPAsTransferPayeeFSP": false,
+  "validateInboundJws": true,
+  "validateInboundPutPartiesJws": false,
+  "jwsSign": true,
+  "jwsSignPutParties": false,
+  "jwsSigningKey": "/jwsSigningKey.key",
+  "jwsVerificationKeysDirectory": null,
+  "cacheUrl": "redis://localhost:6379",
+  "enableTestFeatures": false,
+  "oauthTestServer": {
+    "enabled": false,
+    "listenPort": 6000
+  },
+  "oidc": {
+      "auth": {
+        "refreshSeconds": 3600
+      }
+  },
+  "rejectExpiredQuoteResponses": false,
+  "rejectExpiredTransferFulfils": false,
+  "rejectTransfersOnExpiredQuotes": false,
+  "logIndent": 2,
+  "metrics": {
+    "port": 4004
+  },
+  "getServicesFxpResponse": ["fxp_id"],
+  "apiType": "fspiop",
+  "supportedCurrencies": ["XXX"]
+}

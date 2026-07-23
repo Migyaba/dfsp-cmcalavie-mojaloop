@@ -1,0 +1,348 @@
+/*****
+ License
+ --------------
+ Copyright © 2020-2025 Mojaloop Foundation
+ The Mojaloop files are made available by the Mojaloop Foundation under the Apache License, Version 2.0 (the "License") and you may not use these files except in compliance with the License. You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, the Mojaloop files are distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+ Contributors
+ --------------
+ This is the official list of the Mojaloop project contributors for this file.
+ Names of the original copyright holders (individuals or organizations)
+ should be listed with a '*' in the first column. People who have
+ contributed from an organization can be listed under the organization
+ that actually holds the copyright for their contributions (see the
+ Mojaloop Foundation for an example). Those individuals should have
+ their names indented and be marked with a '-'. Email address can be added
+ optionally within square brackets <email>.
+
+ * Mojaloop Foundation
+ - James Bush <jbush@mojaloop.io>
+
+ --------------
+ ******/
+'use strict';
+
+const { createHttpRequester } = require('@mojaloop/sdk-standard-components').httpRequester;
+const { buildUrl, HTTPResponseError } = require('./common');
+const AuthManager = require('./authManager');
+
+
+/**
+ * A class for making requests to DFSP backend API
+ */
+class BackendRequests {
+    constructor(config) {
+        this.config = config;
+        this.logger = config.logger.push({ component: this.constructor.name });
+
+        // Create HTTP requester with shared agents if available
+        const httpConfig = {
+            timeout: 65000,
+            withCredentials: false,
+            transitional: {
+                clarifyTimeoutError: true,
+            }
+        };
+
+        // Add shared agents to prevent connection recreation per request
+        if (config.sharedAgents) {
+            httpConfig.httpAgent = config.sharedAgents.httpAgent;
+            httpConfig.httpsAgent = config.sharedAgents.httpsAgent;
+            this.logger.isDebugEnabled && this.logger.debug('Using shared HTTP/HTTPS agents for BackendRequests');
+        }
+
+        this.requester = createHttpRequester({
+            logger: this.logger,
+            httpConfig
+        });
+
+        // FSPID of THIS DFSP
+        this.dfspId = config.dfspId;
+
+        this.transportScheme = 'http';
+
+        // Switch or peer DFSP endpoint
+        if (/^https?:\/\//.test(config.backendEndpoint)) {
+            this.backendEndpoint = config.backendEndpoint.replace(/\/*$/, '');
+        } else {
+            this.backendEndpoint = `${this.transportScheme}://${config.backendEndpoint.replace(/\/*$/, '')}`;
+        }
+
+        // Initialize authentication manager
+        this.authManager = new AuthManager(config, this.logger);
+        
+    }
+
+    /**
+     * Executes a GET /otp request for the specified transaction request id
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async getOTP(transactionRequestId) {
+        const url = `otp/${transactionRequestId}`;
+        return this._get(url);
+    }
+
+
+    /**
+     * Executes a GET /parties request for the specified identifier type and identifier
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async getParties(idType, idValue, idSubValue) {
+        const pathSegments = ['parties', idType, idValue];
+        if (idSubValue) {
+            pathSegments.push(idSubValue);
+        }
+        const url = pathSegments.map((segment) => encodeURIComponent(segment)).join('/');
+        const result = await this._get(url);
+        
+        this.logger.isInfoEnabled && this.logger.push({ result }).info('Backend getParties response received');
+        
+        return result;
+    }
+
+    /**
+     * Executes a GET /transfers request for the specified transfer ID
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async getTransfers(transferId) {
+        const url = `transfers/${transferId}`;
+        return this._get(url);
+    }
+
+
+    /**
+     * Executes a POST /quotes request for the specified quote request
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postQuoteRequests(quoteRequest) {
+        return this._post('quotes', quoteRequest);
+    }
+
+
+    /**
+     * Executes a POST /transfers request for the specified transfer prepare
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postTransfers(prepare) {
+        return this._post('transfers', prepare);
+    }
+
+    /**
+     * Executes a POST /fxQuotes request for the specified fxQuotes request
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postFxQuotes(payload) {
+        return this._post('fxQuotes', payload);
+    }
+
+    /**
+     * Executes a POST /fxTransfers request for the specified fxTransfer prepare
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postFxTransfers(payload) {
+        return this._post('fxTransfers', payload);
+    }
+
+    async putFxTransfersNotification(notification, conversionId) {
+        const url = `fxTransfers/${conversionId}`;
+        return this._put(url, notification);
+    }
+
+    /**
+     * Executes a POST /transactionRequests request for the specified transaction request
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postTransactionRequests(transactionRequest) {
+        return this._post('transactionrequests', transactionRequest);
+    }
+
+    /**
+     * Executes a POST /bulkQuotes request for the specified bulk quotes request
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postBulkQuotes(bulkQuotesRequest) {
+        return this._post('bulkQuotes', bulkQuotesRequest);
+    }
+
+    /**
+     * Executes a GET /bulkQuotes/{ID} request for the specified bulk quote ID
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async getBulkQuotes(bulkQuoteId) {
+        const url = `bulkQuotes/${bulkQuoteId}`;
+        return this._get(url);
+    }
+
+    /**
+     * Executes a POST /bulkTransfers request for the specified bulk transfer prepare
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async postBulkTransfers(prepare) {
+        return this._post('bulkTransfers', prepare);
+    }
+
+    /**
+     * Executes a GET /bulkTransfers/{ID} request for the specified bulk transfer ID
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+    async getBulkTransfers(bulkTransferId) {
+        const url = `bulkTransfers/${bulkTransferId}`;
+        return this._get(url);
+    }
+
+    /**
+     * Executes a PUT /transfers/{ID} request to forward notification for success
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+
+    async putTransfersNotification(notifcation, transferId) {
+        const url = `transfers/${transferId}`;
+        return this._put(url, notifcation);
+    }
+
+    /**
+     * Executes a PUT /requestToPay/{ID} request to forward notification for success
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+
+    async putRequestToPayNotification(notifcation, transactionRequestId) {
+        const url = `requestToPay/${transactionRequestId}`;
+        return this._put(url, notifcation);
+    }
+
+    /**
+     * Executes a PUT /bulkTransactions/{ID} request
+     *
+     * @returns {object} - JSON response body if one was received
+     */
+
+    async putBulkTransactions(transactionId, body) {
+        const url = `bulkTransactions/${transactionId}`;
+        return this._put(url, body);
+    }
+
+    /**
+     * Utility function for building outgoing request headers as required by the mojaloop api spec
+     *
+     * @returns {object} - headers object for use in requests to mojaloop api endpoints
+     */
+    async _buildHeaders() {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Date': new Date().toUTCString()
+        };
+
+        // Use OAuth authentication from AuthManager for all endpoints
+        const authHeaders = await this.authManager.buildAuthHeaders();
+        Object.assign(headers, authHeaders);
+
+        return headers;
+    }
+
+    async _get(url) {
+        const reqOpts = {
+            method: 'GET',
+            uri: this._buildUri(url),
+            headers: await this._buildHeaders(),
+        };
+        // Note we do not JWS sign requests with no body i.e. GET requests
+        return this.sendRequest(reqOpts);
+    }
+
+
+    async _put(url, body) {
+        const reqOpts = {
+            method: 'PUT',
+            uri: this._buildUri(url),
+            headers: await this._buildHeaders(),
+            body: JSON.stringify(body)
+        };
+        return this.sendRequest(reqOpts);
+    }
+
+
+    async _post(url, body) {
+        try {
+            const reqOpts = {
+                method: 'POST',
+                uri: this._buildUri(url),
+                headers: await this._buildHeaders(),
+                body: JSON.stringify(body),
+            };
+            return this.sendRequest(reqOpts);
+        } catch (err) {
+            this.logger.push({ err, url }).error('Error in _post method');
+            throw err;
+        }
+    }
+
+    async _patch(url, body) {
+        const reqOpts = {
+            method: 'PATCH',
+            uri : this._buildUri(url),
+            headers: await this._buildHeaders(),
+            body: JSON.stringify(body)
+        };
+        return this.sendRequest(reqOpts);
+    }
+
+    _buildUri(url) {
+        return buildUrl(this.backendEndpoint, url);
+    }
+
+    async sendRequest(reqOptions) {
+        try {
+            this.logger.isInfoEnabled && this.logger.push({ 
+                method: reqOptions?.method,
+                uri: reqOptions?.uri 
+            }).info(`Sending HTTP request to backend`);
+            
+            this.logger.isVerboseEnabled && this.logger.push({ reqOptions }).verbose(`Executing HTTP ${reqOptions?.method}...`);
+            const res = await this.requester.sendRequest({ ...reqOptions });
+
+            const data = (res.headers['content-length'] === '0' || res.statusCode === 204)
+                ? null
+                : res.data;
+            
+            this.logger.isInfoEnabled && this.logger.push({ 
+                statusCode: res.statusCode,
+                hasData: !!data 
+            }).info('Received HTTP response from backend');
+            
+            this.logger.isVerboseEnabled && this.logger.push({ data }).verbose('Received HTTP response data');
+            return data;
+        } catch (err) {
+            this.logger.push({ err }).error(`Error attempting ${reqOptions?.method} ${reqOptions?.uri}`);
+            const { data, headers, status } = err.response || err;
+            throw new HTTPResponseError({
+                res: { data, headers, status },
+                msg: err?.message
+            });
+        }
+    }
+}
+
+
+module.exports = {
+    BackendRequests,
+    HTTPResponseError,
+};

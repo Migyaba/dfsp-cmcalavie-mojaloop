@@ -1,0 +1,31 @@
+{
+  "accounts": [
+    {
+      "currency": "USD",
+      "idType": "MSISDN",
+      "idValue": "123456789"
+    }
+  ],
+  "currentState": "COMPLETED",
+  "modelId": "00000000000000000000000001",
+  "postAccountsResponse": {
+    "body": {
+      "currency": "USD",
+      "partyList": [
+        {
+          "partyId": {
+            "fspId": "mojaloop-sdk",
+            "partyIdType": "MSISDN",
+            "partyIdentifier": "123456789"
+          }
+        }
+      ]
+    }
+  },
+  "response": [
+    {
+      "idType": "MSISDN",
+      "idValue": "123456789"
+    }
+  ]
+}

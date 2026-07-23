@@ -1,0 +1,47 @@
+name: sdk_cmcalavi
+
+services:
+  redis:
+    image: redis:6.2.4-alpine
+    container_name: sdk-redis-cmcalavi
+    restart: unless-stopped
+    ports:
+      - "6382:6379"
+    networks:
+      - sdk-network-cmcalavi
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sdk-scheme-adapter:
+    image: mojaloop/sdk-scheme-adapter:local
+    container_name: sdk-scheme-adapter-cmcalavi
+    restart: unless-stopped
+    command: ["yarn", "run", "start:api-svc"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "4200:4200"
+      - "4201:4201"
+      - "4202:4202"
+      - "4205:4205"
+    volumes:
+      - ./secrets:/opt/app/secrets:ro
+    networks:
+      - sdk-network-cmcalavi
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4201/', r => process.exit(r.statusCode === 404 || r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  sdk-network-cmcalavi:
+    name: sdk-network-cmcalavi
+    driver: bridge

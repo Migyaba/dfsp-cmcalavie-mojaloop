@@ -1,0 +1,19 @@
+# Certificats et clés privées (NE JAMAIS COMMITER!)
+secrets/tls/*.key
+secrets/tls/*.crt
+secrets/jws/*.key
+
+# Fichiers de configuration locaux sensibles
+*.pem
+*.p12
+*.pfx
+
+# Logs
+*.log
+
+# Docker volumes
+.docker/
+
+# Environment variables avec secrets
+.env.local
+.env.production.local

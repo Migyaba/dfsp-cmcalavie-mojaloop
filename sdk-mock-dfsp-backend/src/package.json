@@ -1,0 +1,24 @@
+{
+  "name": "@mojaloop/mock-dfsp-backend",
+  "version": "8.3.2",
+  "description": "A mock DFSP backend for Mojaloop SDK testing and learning",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "James Bush, ModusBox Inc.",
+  "license": "Apache-2.0",
+  "licenses": [
+    {
+      "type": "Apache-2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0"
+    }
+  ],
+  "dependencies": {
+    "base64url": "^3.0.1",
+    "express": "^4.16.3",
+    "request": "^2.88.0",
+    "request-promise-native": "^1.0.7"
+  }
+}

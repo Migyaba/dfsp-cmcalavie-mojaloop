@@ -1,0 +1,2 @@
+yarn dep:check
+yarn audit:check
