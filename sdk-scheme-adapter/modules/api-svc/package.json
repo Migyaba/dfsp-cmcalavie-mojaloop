@@ -77,8 +77,8 @@
     "@mojaloop/sdk-scheme-adapter-private-shared-lib": "workspace:^",
     "@mojaloop/sdk-standard-components": "19.18.9",
     "ajv": "8.17.1",
-    "axios": "1.15.2",
-    "body-parser": "2.2.2",
+    "axios": "1.18.0",
+    "body-parser": "1.20.6",
     "co-body": "6.2.0",
     "dotenv": "17.4.2",
     "env-var": "7.5.0",
@@ -86,7 +86,7 @@
     "fast-json-patch": "3.1.1",
     "fast-safe-stringify": "2.1.1",
     "javascript-state-machine": "3.1.0",
-    "js-yaml": "4.1.1",
+    "js-yaml": "4.3.0",
     "json-schema-ref-parser": "9.0.9",
     "knex": "3.2.9",
     "koa": "3.2.0",
@@ -101,10 +101,10 @@
     "redis": "5.12.1",
     "retry": "^0.13.1",
     "uuidv4": "6.2.13",
-    "ws": "8.20.0"
+    "ws": "8.21.0"
   },
   "devDependencies": {
-    "@babel/core": "7.29.0",
+    "@babel/core": "7.29.6",
     "@babel/preset-env": "7.29.2",
     "@redocly/openapi-cli": "1.0.0-beta.95",
     "@types/jest": "30.0.0",
